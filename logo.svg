@@ -1,26 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Sushi Game Lab">
   <title>Sushi Game Lab</title>
   <defs>
-    <linearGradient id="salmon" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ff9370"/>
-      <stop offset="1" stop-color="#f2603c"/>
+    <linearGradient id="sgl-salmon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff9b74"/>
+      <stop offset="1" stop-color="#ee5836"/>
     </linearGradient>
-    <linearGradient id="rice" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fdfaf4"/>
-      <stop offset="1" stop-color="#ece2d0"/>
+    <linearGradient id="sgl-rice" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#e6dac4"/>
     </linearGradient>
   </defs>
 
-  <!-- 三文鱼 -->
-  <rect x="13" y="28" width="94" height="32" rx="16" fill="url(#salmon)"/>
+  <!-- 饭团：上窄下宽，底边略平，像捏出来的而不是一颗胶囊 -->
+  <path d="M24 62c0-6 5-9 36-9s36 3 36 9v18c0 8-6 13-14 13H38c-8 0-14-5-14-13z" fill="url(#sgl-rice)"/>
+
+  <!-- 三文鱼：比饭团宽,两端垂下来搭在饭团上(出檐),底边带一点波浪 -->
+  <path d="M14 44c0-9 8-15 46-15s46 6 46 15v9c0 5-4 8-9 7-6-1-9-4-14-3s-8 4-14 4-9-3-14-4-8 2-14 3-9-2-14 0-13 1-13-6z" fill="url(#sgl-salmon)"/>
   <!-- 鱼肉纹路 -->
-  <path d="M24 40h72" stroke="#ffc3ac" stroke-width="4" stroke-linecap="round" opacity=".75"/>
-  <path d="M30 50h60" stroke="#ffc3ac" stroke-width="3.5" stroke-linecap="round" opacity=".5"/>
+  <path d="M28 39q32-7 64 0" stroke="#ffc9b3" stroke-width="3.4" stroke-linecap="round" fill="none" opacity=".8"/>
+  <path d="M32 49q28-6 56 0" stroke="#ffc9b3" stroke-width="2.8" stroke-linecap="round" fill="none" opacity=".5"/>
 
-  <!-- 米饭 -->
-  <rect x="17" y="56" width="86" height="40" rx="19" fill="url(#rice)"/>
-
-  <!-- 海苔带 + 播放三角(游戏的部分) -->
-  <rect x="47" y="51" width="26" height="50" rx="4" fill="#241f1b"/>
-  <path d="M55 68l14 8.5-14 8.5z" fill="#fdfaf4"/>
+  <!-- 海苔带：细,只箍住中间 -->
+  <rect x="52" y="41" width="17" height="55" rx="3.5" fill="#221d19"/>
+  <!-- 游戏的那一半:海苔上的播放键 -->
+  <path d="M57.5 62l10 6.5-10 6.5z" fill="#fffdf8"/>
 </svg>
