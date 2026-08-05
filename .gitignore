@@ -1,0 +1,13 @@
+# 每个游戏都是它自己仓库的一份独立 clone，直接躺在站点根目录里。
+# 它们不属于这个仓库 —— 这里只管门户首页本身。
+irontide/
+pvp/
+battle-sim/
+army-sim/
+last-stand/
+invasion/
+survivor/
+light-cycles/
+planefight/
+
+.DS_Store

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#12100e">
+<title>Sushi Game Lab · 寿司游戏实验室</title>
+<meta name="description" content="A kid-made game lab. Free browser games, no account, no install. 小孩自己做的游戏，浏览器打开就能玩，不用注册不用下载。">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="logo.svg">
+<meta property="og:title" content="Sushi Game Lab · 寿司游戏实验室">
+<meta property="og:description" content="Free browser games, made by a kid. No account, no install, no ads.">
+<meta property="og:url" content="https://sushigamelab.com/">
+<meta property="og:image" content="https://sushigamelab.com/logo.svg">
+<meta property="og:type" content="website">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#12100e; --card:#1c1917; --card-hi:#242019;
+    --fg:#f2ece2; --dim:#a29a8c;
+    --accent:#ff7a59;   /* 三文鱼 */
+    --accent-2:#7fc7a4; /* 芥末 */
+    --border:#2e2823; --radius:14px;
+  }
+  html,body{background:var(--bg);color:var(--fg);min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Helvetica Neue",Arial,sans-serif;
+    font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column}
+  a{color:var(--accent);text-decoration:none}
+
+  .hero{text-align:center;padding:52px 20px 30px;
+    background:radial-gradient(120% 90% at 50% 0%,#241d18 0%,var(--bg) 62%)}
+  .hero svg{width:92px;height:92px;filter:drop-shadow(0 8px 22px rgba(0,0,0,.55))}
+  .hero h1{font-size:clamp(28px,6vw,44px);letter-spacing:.5px;font-weight:800;margin-top:12px}
+  .hero h1 span{color:var(--accent)}
+  .hero .zh{color:var(--dim);letter-spacing:6px;font-size:13px;margin-top:6px}
+  .hero .tagline{color:var(--dim);margin-top:14px;font-size:15px;padding:0 10px}
+  .hero .tagline small{opacity:.8}
+
+  main{flex:1;width:100%;max-width:1080px;margin:0 auto;padding:8px 20px 56px}
+  .grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));margin-top:14px}
+
+  .card{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);overflow:hidden;transition:transform .16s ease,border-color .16s ease}
+  .card.playable:hover{transform:translateY(-3px);border-color:var(--accent);background:var(--card-hi)}
+  .thumb{position:relative;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;font-size:50px}
+  .badge{position:absolute;top:10px;right:10px;font-size:11px;letter-spacing:1.5px;font-weight:700;
+    padding:4px 9px;border-radius:20px;background:var(--accent);color:#1a120e}
+  .badge.mp{background:var(--accent-2);color:#10211a}
+  .body{padding:16px 18px 18px;display:flex;flex-direction:column;flex:1}
+  .body h2{font-size:18px;margin-bottom:6px}
+  .desc{color:var(--dim);font-size:14px;flex:1}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .tag{font-size:11px;color:var(--dim);background:#2a2521;border-radius:20px;padding:3px 9px}
+  .cta{margin-top:14px;color:var(--accent);font-weight:600;font-size:14px}
+
+  footer{border-top:1px solid var(--border);padding:26px 20px 44px;text-align:center;
+    color:var(--dim);font-size:13px;line-height:1.9}
+  footer a{color:var(--accent-2)}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <!-- logo 内联,省一次请求;logo.svg 同目录另存一份给 favicon / OG 用 -->
+  <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sushi Game Lab">
+    <defs>
+      <linearGradient id="salmon" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ff9370"/><stop offset="1" stop-color="#f2603c"/>
+      </linearGradient>
+      <linearGradient id="rice" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fdfaf4"/><stop offset="1" stop-color="#ece2d0"/>
+      </linearGradient>
+    </defs>
+    <rect x="13" y="28" width="94" height="32" rx="16" fill="url(#salmon)"/>
+    <path d="M24 40h72" stroke="#ffc3ac" stroke-width="4" stroke-linecap="round" opacity=".75"/>
+    <path d="M30 50h60" stroke="#ffc3ac" stroke-width="3.5" stroke-linecap="round" opacity=".5"/>
+    <rect x="17" y="56" width="86" height="40" rx="19" fill="url(#rice)"/>
+    <rect x="47" y="51" width="26" height="50" rx="4" fill="#241f1b"/>
+    <path d="M55 68l14 8.5-14 8.5z" fill="#fdfaf4"/>
+  </svg>
+  <h1>Sushi <span>Game</span> Lab</h1>
+  <div class="zh">寿司游戏实验室</div>
+  <p class="tagline">小孩自己做的游戏 · 浏览器打开就能玩 · 不用注册、不用下载、没有广告<br>
+    <small>Games made by a kid. Free in your browser — no account, no install, no ads.</small></p>
+</header>
+
+<main>
+  <section class="grid">
+
+    <a class="card playable" href="/irontide/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#1d3c50,#0a1218)">⚓
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>Iron Tide · 钢铁怒潮</h2>
+        <p class="desc">你是舰长，站在自己军舰的甲板上。买炮装炮、掌舵冲锋、起飞舰载机、开坦克登岛。29 艘战舰、31 个战区、中英双语。</p>
+        <div class="tags"><span class="tag">海战</span><span class="tag">3D</span><span class="tag">战役</span><span class="tag">手机可玩</span></div>
+        <div class="cta">现在开打 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/pvp/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#3a2b46,#150f1c)">🔫
+        <span class="badge mp">联机</span></div>
+      <div class="body">
+        <h2>PVP Arena · 竞技场</h2>
+        <p class="desc">3D 多人第一人称射击。真联机对战，多种枪械和近战武器，还能在房间里打字聊天。</p>
+        <div class="tags"><span class="tag">多人联机</span><span class="tag">FPS</span><span class="tag">3D</span></div>
+        <div class="cta">进入竞技场 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/battle-sim/battle-sim-side.html">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#4a3a22,#17120a)">⚔️
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>2D 战斗模拟器 · Battle Sim</h2>
+        <p class="desc">侧视角军队对撞模拟器。两边摆兵、按下开始，然后看布娃娃物理把战场搅成一锅粥。</p>
+        <div class="tags"><span class="tag">模拟</span><span class="tag">布娃娃物理</span><span class="tag">2D</span></div>
+        <div class="cta">摆兵开战 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/army-sim/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#2c4327,#0e150c)">🪖
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>小人大战 · Army Sim</h2>
+        <p class="desc">花钱买兵、分等级组队，看两支小人军队正面硬碰硬。兵种越贵越离谱。</p>
+        <div class="tags"><span class="tag">模拟</span><span class="tag">策略</span><span class="tag">2D</span></div>
+        <div class="cta">组建军队 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/last-stand/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#3d2020,#160a0a)">🧟
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>Last Stand · 最后防线</h2>
+        <p class="desc">丧尸一波一波往上冲，你一边开枪一边造炮塔守住阵地。撑过普通波次还有 BOSS 等着。</p>
+        <div class="tags"><span class="tag">塔防</span><span class="tag">射击</span><span class="tag">波次</span></div>
+        <div class="cta">守住阵地 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/invasion/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#2f3a24,#0d120a)">☣️
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>Invasion · 丧尸围城</h2>
+        <p class="desc">丧尸爆发的另一种打法：招募士兵、救出幸存者，带着队伍一路推到 BOSS 面前。</p>
+        <div class="tags"><span class="tag">生存</span><span class="tag">小队</span><span class="tag">BOSS</span></div>
+        <div class="cta">开始撤离 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/survivor/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#432a2a,#160c0c)">💀
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>Survivor · 幸存者</h2>
+        <p class="desc">2D 俯视角射击。四面八方都是敌人，活得越久越难，看你能扛到第几分钟。</p>
+        <div class="tags"><span class="tag">俯视射击</span><span class="tag">生存</span><span class="tag">2D</span></div>
+        <div class="cta">活下去 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/light-cycles/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#153a44,#08161a)">🏍️
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>Light Cycles · 光轮摩托</h2>
+        <p class="desc">拖着光墙跑，谁先撞墙谁输。四种玩法：光轮、飞盘、飞机、贪吃蛇。可以两个人抢同一个键盘。</p>
+        <div class="tags"><span class="tag">双人同屏</span><span class="tag">街机</span><span class="tag">4 种模式</span></div>
+        <div class="cta">拉出光墙 Play →</div>
+      </div>
+    </a>
+
+    <a class="card playable" href="/planefight/">
+      <div class="thumb" style="background:radial-gradient(120% 100% at 50% 30%,#20374a,#0a1017)">✈️
+        <span class="badge">LIVE</span></div>
+      <div class="body">
+        <h2>Plane Fight · 空战</h2>
+        <p class="desc">小巧的飞机空战。躲子弹、咬住敌机，一局几分钟，打完还想再来一把。</p>
+        <div class="tags"><span class="tag">空战</span><span class="tag">街机</span><span class="tag">2D</span></div>
+        <div class="cta">起飞 Play →</div>
+      </div>
+    </a>
+
+  </section>
+</main>
+
+<footer>
+  🍣 <b>Sushi Game Lab</b> · 一个小孩的游戏实验室<br>
+  全部游戏源码公开在 <a href="https://github.com/VideoGameTips" target="_blank" rel="noopener">GitHub</a>
+</footer>
+
+</body>
+</html>

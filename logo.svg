@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Sushi Game Lab">
+  <title>Sushi Game Lab</title>
+  <defs>
+    <linearGradient id="salmon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff9370"/>
+      <stop offset="1" stop-color="#f2603c"/>
+    </linearGradient>
+    <linearGradient id="rice" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdfaf4"/>
+      <stop offset="1" stop-color="#ece2d0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 三文鱼 -->
+  <rect x="13" y="28" width="94" height="32" rx="16" fill="url(#salmon)"/>
+  <!-- 鱼肉纹路 -->
+  <path d="M24 40h72" stroke="#ffc3ac" stroke-width="4" stroke-linecap="round" opacity=".75"/>
+  <path d="M30 50h60" stroke="#ffc3ac" stroke-width="3.5" stroke-linecap="round" opacity=".5"/>
+
+  <!-- 米饭 -->
+  <rect x="17" y="56" width="86" height="40" rx="19" fill="url(#rice)"/>
+
+  <!-- 海苔带 + 播放三角(游戏的部分) -->
+  <rect x="47" y="51" width="26" height="50" rx="4" fill="#241f1b"/>
+  <path d="M55 68l14 8.5-14 8.5z" fill="#fdfaf4"/>
+</svg>
