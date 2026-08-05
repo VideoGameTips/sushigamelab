@@ -1,0 +1,8 @@
+# Sushi Game Lab — everything here is meant to be found.
+# Cloudflare serves its own comment-only robots.txt when the origin has none;
+# this file replaces it, so the Sitemap line below actually reaches crawlers.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://sushigamelab.com/sitemap.xml

@@ -4,15 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#12100e">
-<title>Sushi Game Lab · 寿司游戏实验室</title>
-<meta name="description" content="A kid-made game lab. Free browser games, no account, no install. 小孩自己做的游戏，浏览器打开就能玩，不用注册不用下载。">
+<title>Sushi Game Lab · 寿司游戏实验室 — 9 个免费网页游戏</title>
+<meta name="description" content="一个小孩自己做的 9 个网页游戏：海战、丧尸塔防、多人射击、光轮摩托。浏览器打开就能玩，不用注册、不用下载、没有广告。Nine free browser games made by a kid — no account, no install, no ads.">
+<link rel="canonical" href="https://sushigamelab.com/">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="logo.svg">
+<link rel="apple-touch-icon" href="og-cover.png">
+<meta property="og:site_name" content="Sushi Game Lab">
 <meta property="og:title" content="Sushi Game Lab · 寿司游戏实验室">
-<meta property="og:description" content="Free browser games, made by a kid. No account, no install, no ads.">
+<meta property="og:description" content="9 个小孩自己做的网页游戏，打开就能玩。Nine free browser games made by a kid — no account, no install, no ads.">
 <meta property="og:url" content="https://sushigamelab.com/">
-<meta property="og:image" content="https://sushigamelab.com/logo.svg">
+<!-- must be a raster image: Facebook / X / Slack / Discord all reject SVG for
+     og:image, and fail silently with a blank card. Regenerate with
+     tools/make-og-image.py after changing the logo or the wording. -->
+<meta property="og:image" content="https://sushigamelab.com/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Sushi Game Lab — 寿司游戏实验室">
 <meta property="og:type" content="website">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Sushi Game Lab · 寿司游戏实验室">
+<meta name="twitter:description" content="9 个小孩自己做的网页游戏，打开就能玩。Nine free browser games made by a kid.">
+<meta name="twitter:image" content="https://sushigamelab.com/og-cover.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -195,6 +209,98 @@
   🍣 <b>Sushi Game Lab</b> · 一个小孩的游戏实验室<br>
   全部游戏源码公开在 <a href="https://github.com/VideoGameTips" target="_blank" rel="noopener">GitHub</a>
 </footer>
+
+<!-- Structured data. Every game is genuinely free and needs no install, so
+     the offer price of 0 and playMode are statements of fact, not decoration —
+     marking up anything here that the page does not actually show is what gets
+     a site a manual action. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://sushigamelab.com/#website",
+      "url": "https://sushigamelab.com/",
+      "name": "Sushi Game Lab",
+      "alternateName": "寿司游戏实验室",
+      "description": "Free browser games made by a kid — no account, no install, no ads.",
+      "inLanguage": ["zh-CN", "en"]
+    },
+    {
+      "@type": "ItemList",
+      "@id": "https://sushigamelab.com/#games",
+      "name": "Games at Sushi Game Lab",
+      "numberOfItems": 9,
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "item": {
+          "@type": "VideoGame", "name": "Iron Tide 钢铁怒潮",
+          "url": "https://sushigamelab.com/irontide/",
+          "description": "Command a warship: buy and mount guns, steer, launch aircraft, drive tanks ashore. 29 ships across 31 theatres.",
+          "genre": ["Naval combat", "Action"], "gamePlatform": "Web browser",
+          "playMode": "SinglePlayer", "inLanguage": ["zh-CN", "en"],
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 2, "item": {
+          "@type": "VideoGame", "name": "PVP Arena",
+          "url": "https://sushigamelab.com/pvp/",
+          "description": "3D multiplayer first-person shooter with guns, melee weapons and in-room chat.",
+          "genre": ["Shooter", "Multiplayer"], "gamePlatform": "Web browser",
+          "playMode": "MultiPlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 3, "item": {
+          "@type": "VideoGame", "name": "2D Battle Simulator",
+          "url": "https://sushigamelab.com/battle-sim/battle-sim-side.html",
+          "description": "Side-view army sandbox: place fighters on both sides, press start, watch ragdoll physics decide it.",
+          "genre": ["Simulation", "Sandbox"], "gamePlatform": "Web browser",
+          "playMode": "SinglePlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 4, "item": {
+          "@type": "VideoGame", "name": "Army Sim",
+          "url": "https://sushigamelab.com/army-sim/",
+          "description": "Push-and-shove lane battle: spend on dozens of unit types, take the beacon, bring down the enemy tower.",
+          "genre": ["Strategy", "Simulation"], "gamePlatform": "Web browser",
+          "playMode": "SinglePlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 5, "item": {
+          "@type": "VideoGame", "name": "Last Stand",
+          "url": "https://sushigamelab.com/last-stand/",
+          "description": "Zombie waves against a line you defend with guns and turrets you build between rounds.",
+          "genre": ["Tower defense", "Shooter"], "gamePlatform": "Web browser",
+          "playMode": "SinglePlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 6, "item": {
+          "@type": "VideoGame", "name": "Survivor",
+          "url": "https://sushigamelab.com/survivor/",
+          "description": "Pick four of eleven weapons, then stay alive as long as you can.",
+          "genre": ["Shooter", "Survival"], "gamePlatform": "Web browser",
+          "playMode": "SinglePlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 7, "item": {
+          "@type": "VideoGame", "name": "Light Cycles",
+          "url": "https://sushigamelab.com/light-cycles/",
+          "description": "Trail a wall of light and make the other player hit it first. Four modes, two players on one keyboard.",
+          "genre": ["Arcade"], "gamePlatform": "Web browser",
+          "playMode": "MultiPlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 8, "item": {
+          "@type": "VideoGame", "name": "Plane Fight",
+          "url": "https://sushigamelab.com/planefight/",
+          "description": "Two players each pick a plane and a loadout — guns have weight — then settle it in the air.",
+          "genre": ["Arcade", "Air combat"], "gamePlatform": "Web browser",
+          "playMode": "MultiPlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } },
+        { "@type": "ListItem", "position": 9, "item": {
+          "@type": "VideoGame", "name": "Invasion",
+          "url": "https://sushigamelab.com/invasion/",
+          "description": "The earlier build of Last Stand, kept online as an archive: same world map, before turrets and building existed.",
+          "genre": ["Strategy"], "gamePlatform": "Web browser",
+          "playMode": "SinglePlayer",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } } }
+      ]
+    }
+  ]
+}
+</script>
 
 </body>
 </html>
