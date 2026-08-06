@@ -12,7 +12,7 @@
 set -u
 ROOT="${SITE_ROOT:-/opt/games/sushigamelab}"
 
-ALL="irontide pvp battle-sim army-sim last-stand invasion survivor light-cycles planefight"
+ALL="irontide pvp battle-sim army-sim last-stand invasion survivor light-cycles planefight penguin-ninja"
 
 if [ $# -gt 0 ]; then
   GAMES=""
