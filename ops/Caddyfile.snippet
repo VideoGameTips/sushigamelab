@@ -1,0 +1,23 @@
+# Place this route block inside the existing sushigamelab.com site block,
+# before its static file_server fallback. Do not use handle_path here: the
+# Sushi API expects to receive the /sushi-api prefix unchanged.
+route {
+	# Preserve the existing PVP Arena AI chat API. Keep these exact routes
+	# ahead of the private /api/* deny rule below.
+	@pvpChat path /api/chat /api/chat/status
+	reverse_proxy @pvpChat 127.0.0.1:3001
+
+	# Sushi ID accounts and leaderboards. The service itself is loopback-only.
+	@sushiApi path /sushi-api /sushi-api/*
+	reverse_proxy @sushiApi 127.0.0.1:3030
+
+	# The portal checkout is also the static web root. Never let Caddy expose
+	# Node source, dependencies, local operations files, environment files, or
+	# Git metadata from that checkout.
+	@privatePortalFiles path /api /api/* /ops /ops/* /.git /.git/* /.env /.env.*
+	respond @privatePortalFiles 404
+}
+
+# Keep the site's existing static fallback after the route block, for example:
+# root * /opt/games/sushigamelab
+# file_server

@@ -11,4 +11,12 @@ light-cycles/
 planefight/
 penguin-ninja/
 
+# Sushi ID runtime data and dependencies. The account database must never be
+# committed or served by Caddy.
+api/node_modules/
+api/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
 .DS_Store

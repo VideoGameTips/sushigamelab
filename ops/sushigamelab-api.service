@@ -1,0 +1,65 @@
+[Unit]
+Description=Sushi Game Lab account and leaderboard API
+Documentation=https://github.com/VideoGameTips/sushigamelab
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=sushigamelab
+Group=sushigamelab
+WorkingDirectory=/opt/games/sushigamelab/api
+EnvironmentFile=/etc/sushigamelab-api.env
+ExecStartPre=/usr/bin/test -r /opt/games/sushigamelab/api/server.js
+ExecStart=/usr/bin/node /opt/games/sushigamelab/api/server.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=25s
+KillSignal=SIGTERM
+
+# systemd creates this as /var/lib/sushigamelab, owned by the service user.
+StateDirectory=sushigamelab
+StateDirectoryMode=0700
+UMask=0077
+
+# The API is only for the local Caddy reverse proxy. HOST makes the Node
+# listener loopback-only; the address policy below is defense in depth.
+IPAddressDeny=any
+IPAddressAllow=localhost
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# The application can read its checkout but can only write its state folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sushigamelab
+PrivateTmp=true
+PrivateDevices=true
+PrivateMounts=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+
+# Bound runaway work without being tight enough to interrupt normal scrypt.
+LimitNOFILE=4096
+TasksMax=128
+MemoryHigh=384M
+MemoryMax=640M
+
+[Install]
+WantedBy=multi-user.target

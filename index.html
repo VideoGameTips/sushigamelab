@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#12100e">
-<title>Sushi Game Lab · 寿司游戏实验室 — 9 个免费网页游戏</title>
-<meta name="description" content="一个小孩自己做的 9 个网页游戏：海战、丧尸塔防、多人射击、光轮摩托。浏览器打开就能玩，不用注册、不用下载、没有广告。Nine free browser games made by a kid — no account, no install, no ads.">
+<title>Sushi Game Lab · 寿司游戏实验室 — 10 个免费网页游戏</title>
+<meta name="description" content="一个小孩自己做的 10 个网页游戏：海战、丧尸塔防、多人射击、光轮摩托。浏览器打开就能玩，账户可选、不用下载、没有广告。Ten free browser games made by a kid — optional account, no install, no ads.">
 <link rel="canonical" href="https://sushigamelab.com/">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="og-cover.png">
 <meta property="og:site_name" content="Sushi Game Lab">
 <meta property="og:title" content="Sushi Game Lab · 寿司游戏实验室">
-<meta property="og:description" content="9 个小孩自己做的网页游戏，打开就能玩。Nine free browser games made by a kid — no account, no install, no ads.">
+<meta property="og:description" content="10 个小孩自己做的网页游戏，打开就能玩。Ten free browser games made by a kid — optional account, no install, no ads.">
 <meta property="og:url" content="https://sushigamelab.com/">
 <!-- must be a raster image: Facebook / X / Slack / Discord all reject SVG for
      og:image, and fail silently with a blank card. Regenerate with
@@ -25,8 +25,9 @@
 <meta property="og:locale:alternate" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Sushi Game Lab · 寿司游戏实验室">
-<meta name="twitter:description" content="9 个小孩自己做的网页游戏，打开就能玩。Nine free browser games made by a kid.">
+<meta name="twitter:description" content="10 个小孩自己做的网页游戏，打开就能玩。Ten free browser games made by a kid.">
 <meta name="twitter:image" content="https://sushigamelab.com/og-cover.png">
+<link rel="stylesheet" href="/account.css">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -68,12 +69,25 @@
   .tag{font-size:11px;color:var(--dim);background:#2a2521;border-radius:20px;padding:3px 9px}
   .cta{margin-top:14px;color:var(--accent);font-weight:600;font-size:14px}
 
+  .rank-banner{margin:14px 0 24px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:20px;
+    border:1px solid #4a382d;border-radius:var(--radius);background:linear-gradient(120deg,#2a201a,#1a1815 58%,#17231d)}
+  .rank-banner h2{font-size:18px;margin-bottom:3px}.rank-banner p{font-size:13px;color:var(--dim)}
+  .rank-banner a{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:999px;
+    padding:9px 14px;background:var(--accent);color:#1a120e;font-size:12px;font-weight:900}
+
   footer{border-top:1px solid var(--border);padding:26px 20px 44px;text-align:center;
     color:var(--dim);font-size:13px;line-height:1.9}
   footer a{color:var(--accent-2)}
+  @media(max-width:620px){.rank-banner{align-items:flex-start;flex-direction:column}.rank-banner a{width:100%}}
 </style>
+<script src="/account.js" defer></script>
 </head>
 <body>
+
+<nav class="sgl-nav" aria-label="Main navigation">
+  <a class="sgl-nav-home" href="/"><img src="/logo.svg" alt=""><span>Sushi Game Lab</span></a>
+  <div class="sgl-nav-actions"><a class="sgl-nav-link" href="/leaderboard.html">🏆 Rankings</a><button class="sgl-account-button" data-sgl-account type="button">🍣 Guest · Sign in</button></div>
+</nav>
 
 <header class="hero">
   <!-- logo 内联,省一次请求;logo.svg 同目录另存一份给 favicon / OG 用 -->
@@ -95,11 +109,15 @@
   </svg>
   <h1>Sushi <span>Game</span> Lab</h1>
   <div class="zh">寿司游戏实验室</div>
-  <p class="tagline">小孩自己做的游戏 · 浏览器打开就能玩 · 不用注册、不用下载、没有广告<br>
-    <small>Games made by a kid. Free in your browser — no account, no install, no ads.</small></p>
+  <p class="tagline">小孩自己做的游戏 · 浏览器打开就能玩 · 账户可选、不用下载、没有广告<br>
+    <small>Games made by a kid. Free in your browser — optional account, no install, no ads.</small></p>
 </header>
 
 <main>
+  <section class="rank-banner">
+    <div><h2>🏆 Arcade Rankings · 游戏排行榜</h2><p>用可选的 Sushi ID 记录成绩。游客仍然可以直接玩全部游戏。</p></div>
+    <a href="/leaderboard.html">VIEW RANKINGS →</a>
+  </section>
   <section class="grid">
 
     <a class="card playable" href="/irontide/">
@@ -235,14 +253,14 @@
       "url": "https://sushigamelab.com/",
       "name": "Sushi Game Lab",
       "alternateName": "寿司游戏实验室",
-      "description": "Free browser games made by a kid — no account, no install, no ads.",
+      "description": "Free browser games made by a kid — optional account, no install, no ads.",
       "inLanguage": ["zh-CN", "en"]
     },
     {
       "@type": "ItemList",
       "@id": "https://sushigamelab.com/#games",
       "name": "Games at Sushi Game Lab",
-      "numberOfItems": 9,
+      "numberOfItems": 10,
       "itemListElement": [
         { "@type": "ListItem", "position": 1, "item": {
           "@type": "VideoGame", "name": "Iron Tide 钢铁怒潮",
