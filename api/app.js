@@ -10,7 +10,7 @@ import { GAMES, findMode } from './config.js';
 import { createStore } from './store.js';
 import {
   hashPassword, hashToken, makeDisplayName, makeRecoveryCode, normalizeUsername,
-  randomToken, validateCredentials, verifyPassword, verifyToken
+  randomToken, validateCredentials, verifyAttestation, verifyPassword, verifyToken
 } from './security.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +42,10 @@ export function createApp(options = {}) {
   const secureCookies = options.secureCookies ?? production;
   const publicOrigin = options.publicOrigin || process.env.PUBLIC_ORIGIN || (production ? 'https://sushigamelab.com' : '');
   const minimumRunSeconds = options.minimumRunSeconds ?? 10;
+  // Both optional. Unset means the feature is off: no trusted scorer can mark anything
+  // 'verified', and the moderation routes answer 404 as though they were never added.
+  const verifierSecret = options.verifierSecret ?? process.env.SGL_VERIFIER_SECRET ?? '';
+  const adminToken = options.adminToken ?? process.env.SGL_ADMIN_TOKEN ?? '';
   const store = createStore(dbPath);
   const app = express();
   app.locals.store = store;
@@ -86,6 +90,18 @@ export function createApp(options = {}) {
     limit: 120,
     standardHeaders: 'draft-7', legacyHeaders: false,
     message: { error: 'Too many leaderboard refreshes. Please wait a moment.' }
+  });
+
+  // Guards the token-authenticated routes: moderation, and the service-to-service run
+  // lookup. Both are gated by a shared secret, and a secret behind an unthrottled
+  // endpoint is one somebody can sit and guess at. Declared up here with the other
+  // limiters rather than beside its routes — a `const` used by a route registered
+  // earlier in the function is a temporal-dead-zone crash at startup.
+  const adminLimit = options.disableRateLimits ? (_req, _res, next) => next() : rateLimit({
+    windowMs: 10 * 60 * 1000,
+    limit: 60,
+    standardHeaders: 'draft-7', legacyHeaders: false,
+    message: { error: 'Too many moderation requests. Please wait a few minutes.' }
   });
 
   function issueSession(res, userId, authVersion) {
@@ -257,12 +273,18 @@ export function createApp(options = {}) {
       if (metadata.cheatEnabled) return res.status(400).json({ error: 'Cheat-enabled runs are not ranked.' });
       const metadataJson = JSON.stringify(metadata);
       if (Buffer.byteLength(metadataJson) > 4096) return res.status(413).json({ error: 'Run details are too large.' });
+      // A score is 'verified' only when a trusted scorer signed this exact run and
+      // value. The browser relays the signature but cannot produce one, so a modified
+      // client can still post a score — it just cannot promote it past 'community'.
+      const verification = verifyAttestation(verifierSecret, run.id, run.mode_slug, value, metadata.attestation)
+        ? 'verified' : 'community';
+
       const score = {
         id: randomUUID(), runId: run.id, userId: run.user_id, gameSlug: run.game_slug,
-        modeSlug: run.mode_slug, value, verification: 'community', metadataJson, achievedAt: now
+        modeSlug: run.mode_slug, value, verification, metadataJson, achievedAt: now
       };
       store.finishRun(score);
-      res.status(201).json({ accepted: true, verification: 'community', score: { value, achievedAt: now } });
+      res.status(201).json({ accepted: true, verification, score: { value, achievedAt: now } });
     } catch (error) {
       if (error.code === 'RUN_FINISHED' || error.code === 'SQLITE_CONSTRAINT_UNIQUE') return res.status(409).json({ error: 'Run already finished.' });
       next(error);
@@ -286,6 +308,79 @@ export function createApp(options = {}) {
       entries: board.rows.map(mapRow),
       me: board.me ? { rank: board.me.board_rank, displayName: board.me.display_name, value: board.me.value, achievedAt: board.me.achieved_at } : null
     });
+  });
+
+  // ---- service-to-service ------------------------------------------------------------
+  //
+  // A game's trusted scoring server keeps its own detailed boards (Iron Tide ranks 31
+  // theatres across 3 difficulties; this service ranks one number per mode). Those
+  // boards need to say WHO set a time, and the only thing the scoring server receives
+  // from the browser is a run id — which a modified client could copy from anyone.
+  //
+  // So it asks here instead. Authenticated with the same secret used for attestations,
+  // never reachable from a browser: no cookie is accepted, and a caller without the
+  // secret gets the same 404 as a route that does not exist. Returns the PUBLIC display
+  // name only — a scoring server has no business knowing the private login.
+  function requireService(req, res, next) {
+    if (!verifierSecret) return res.status(404).json({ error: 'API route not found.' });
+    const supplied = String(req.get('x-service-token') || '');
+    if (!supplied || !verifyToken(supplied, hashToken(verifierSecret))) {
+      return res.status(404).json({ error: 'API route not found.' });
+    }
+    next();
+  }
+
+  app.get(`${API_PREFIX}/internal/runs/:runId`, adminLimit, requireService, (req, res) => {
+    const run = store.getRunOwner(req.params.runId);
+    if (!run) return res.status(404).json({ error: 'Ranked run not found.' });
+    res.json({
+      runId: run.id, gameSlug: run.game_slug, modeSlug: run.mode_slug, status: run.status,
+      expiresAt: run.expires_at, userId: run.user_id, displayName: run.display_name,
+      disabled: Boolean(run.disabled_at)
+    });
+  });
+
+  // ---- moderation -----------------------------------------------------------------
+  //
+  // The schema always had disabled_at, removed_at and removal_reason, and nine queries
+  // filtered on them, but nothing could ever set them — so a bad entry on a children's
+  // leaderboard could only be dealt with by hand-editing SQLite on the server. These
+  // routes close that gap.
+  //
+  // Auth is a shared token rather than a role on the user model: adding "admin" to an
+  // account would mean one compromised child login could rewrite the board, and the
+  // people who moderate this site are the parents who already hold the server.
+  // The token travels in a header, never a query string — the reverse proxy logs URIs.
+  function requireAdmin(req, res, next) {
+    if (!adminToken) return res.status(404).json({ error: 'API route not found.' });
+    const supplied = String(req.get('x-admin-token') || '');
+    if (!supplied || !verifyToken(supplied, hashToken(adminToken))) {
+      return res.status(401).json({ error: 'Moderation token is incorrect.' });
+    }
+    next();
+  }
+
+  app.get(`${API_PREFIX}/admin/scores`, adminLimit, requireAdmin, (req, res) => {
+    const game = req.query.game ? String(req.query.game) : null;
+    const limit = Math.min(500, Math.max(1, Number.parseInt(req.query.limit, 10) || 100));
+    res.json({ scores: store.recentScoresForReview(game, limit) });
+  });
+
+  app.post(`${API_PREFIX}/admin/scores/:scoreId`, adminLimit, requireAdmin, (req, res) => {
+    const hide = req.body?.removed !== false;
+    const changed = hide
+      ? store.removeScore(req.params.scoreId, req.body?.reason)
+      : store.restoreScore(req.params.scoreId);
+    if (!changed) return res.status(404).json({ error: 'Score not found, or already in that state.' });
+    res.json({ ok: true, removed: hide });
+  });
+
+  app.post(`${API_PREFIX}/admin/users/:userId`, adminLimit, requireAdmin, (req, res) => {
+    const disable = req.body?.disabled !== false;
+    if (!store.setUserDisabled(req.params.userId, disable)) {
+      return res.status(404).json({ error: 'Account not found.' });
+    }
+    res.json({ ok: true, disabled: disable });
   });
 
   app.use(API_PREFIX, (_req, res) => res.status(404).json({ error: 'API route not found.' }));
