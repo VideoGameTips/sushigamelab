@@ -309,6 +309,16 @@ export function createApp(options = {}) {
   // account would mean one compromised child login could rewrite the board, and the
   // people who moderate this site are the parents who already hold the server.
   // The token travels in a header, never a query string — the reverse proxy logs URIs.
+  // Every other sensitive route here is throttled; these must be too. The token is the
+  // only thing between the open internet and rewriting a children's leaderboard, and an
+  // unthrottled endpoint is an invitation to sit and guess at it.
+  const adminLimit = options.disableRateLimits ? (_req, _res, next) => next() : rateLimit({
+    windowMs: 10 * 60 * 1000,
+    limit: 60,
+    standardHeaders: 'draft-7', legacyHeaders: false,
+    message: { error: 'Too many moderation requests. Please wait a few minutes.' }
+  });
+
   function requireAdmin(req, res, next) {
     if (!adminToken) return res.status(404).json({ error: 'API route not found.' });
     const supplied = String(req.get('x-admin-token') || '');
@@ -318,13 +328,13 @@ export function createApp(options = {}) {
     next();
   }
 
-  app.get(`${API_PREFIX}/admin/scores`, requireAdmin, (req, res) => {
+  app.get(`${API_PREFIX}/admin/scores`, adminLimit, requireAdmin, (req, res) => {
     const game = req.query.game ? String(req.query.game) : null;
     const limit = Math.min(500, Math.max(1, Number.parseInt(req.query.limit, 10) || 100));
     res.json({ scores: store.recentScoresForReview(game, limit) });
   });
 
-  app.post(`${API_PREFIX}/admin/scores/:scoreId`, requireAdmin, (req, res) => {
+  app.post(`${API_PREFIX}/admin/scores/:scoreId`, adminLimit, requireAdmin, (req, res) => {
     const hide = req.body?.removed !== false;
     const changed = hide
       ? store.removeScore(req.params.scoreId, req.body?.reason)
@@ -333,7 +343,7 @@ export function createApp(options = {}) {
     res.json({ ok: true, removed: hide });
   });
 
-  app.post(`${API_PREFIX}/admin/users/:userId`, requireAdmin, (req, res) => {
+  app.post(`${API_PREFIX}/admin/users/:userId`, adminLimit, requireAdmin, (req, res) => {
     const disable = req.body?.disabled !== false;
     if (!store.setUserDisabled(req.params.userId, disable)) {
       return res.status(404).json({ error: 'Account not found.' });

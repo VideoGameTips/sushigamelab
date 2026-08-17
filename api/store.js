@@ -102,9 +102,12 @@ export function createStore(dbPath) {
   // database rebuilds nothing.
   const scoresDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='scores'").get()?.sql || '';
   if (!scoresDdl.includes("'verified'")) {
-    // foreign_keys cannot be toggled inside a transaction, hence the order here.
+    // foreign_keys cannot be toggled inside a transaction, hence the order here — and
+    // hence the try/finally: if the rebuild throws, enforcement has to come back on
+    // regardless, or the rest of this process would run with foreign keys silently off.
     db.pragma('foreign_keys = OFF');
-    db.exec(`
+    try {
+      db.exec(`
       BEGIN;
       CREATE TABLE scores_migrating (
         id TEXT PRIMARY KEY,
@@ -125,9 +128,11 @@ export function createStore(dbPath) {
       ALTER TABLE scores_migrating RENAME TO scores;
       CREATE INDEX IF NOT EXISTS scores_board ON scores(game_slug, mode_slug, achieved_at, value);
       CREATE INDEX IF NOT EXISTS scores_user ON scores(user_id);
-      COMMIT;
-    `);
-    db.pragma('foreign_keys = ON');
+        COMMIT;
+      `);
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
     const check = db.pragma('foreign_key_check', { simple: false });
     if (check.length) throw new Error(`Score migration left ${check.length} dangling reference(s).`);
   }
