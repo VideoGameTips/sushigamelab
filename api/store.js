@@ -155,6 +155,11 @@ export function createStore(dbPath) {
     deleteUserSessions: db.prepare('DELETE FROM sessions WHERE user_id=?'),
     recoverUser: db.prepare(`UPDATE users SET password_hash=@passwordHash,recovery_hash=@recoveryHash,auth_version=auth_version+1
       WHERE id=@userId AND recovery_hash=@oldRecoveryHash AND auth_version=@authVersion AND disabled_at IS NULL`),
+    // Replace the recovery code without touching the password. auth_version is
+    // deliberately NOT bumped: that exists to invalidate sessions when credentials
+    // change, and minting a fresh recovery code should not sign the child out of the
+    // device they are holding.
+    rotateRecovery: db.prepare('UPDATE users SET recovery_hash=@recoveryHash WHERE id=@userId AND disabled_at IS NULL'),
     deleteUser: db.prepare('DELETE FROM users WHERE id=? AND auth_version=?'),
     createRun: db.prepare('INSERT INTO runs (id,user_id,game_slug,mode_slug,token_hash,client_version,started_at,expires_at) VALUES (@id,@userId,@gameSlug,@modeSlug,@tokenHash,@clientVersion,@startedAt,@expiresAt)'),
     run: db.prepare('SELECT * FROM runs WHERE id=?'),
@@ -253,6 +258,7 @@ export function createStore(dbPath) {
         return true;
       })();
     },
+    rotateRecovery(userId, recoveryHash) { return statements.rotateRecovery.run({ userId, recoveryHash }).changes === 1; },
     deleteUser(userId, authVersion) { return statements.deleteUser.run(userId, authVersion).changes === 1; },
     createRun(run) { statements.createRun.run(run); },
     countOpenRuns(userId, now = Date.now()) { return statements.openRuns.get(userId, now).count; },

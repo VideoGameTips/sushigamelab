@@ -329,3 +329,49 @@ test('run lookup is invisible when no verifier secret is configured', async t =>
   });
   assert.equal(looked.response.status, 404);
 });
+
+test('a signed-in player can mint a fresh recovery code, and the old one dies', async t => {
+  const { client, makeClient } = await makeHarness(t);
+  const registered = await client.request('/sushi-api/auth/register', {
+    method: 'POST', body: JSON.stringify({ username: 'LostTheCode', password: 'a-long-safe-password' })
+  });
+  const original = registered.data.recoveryCode;
+
+  // Wrong password does not mint one — a borrowed unlocked browser must not be able to
+  // quietly create itself a permanent way back into the account.
+  const wrong = await client.request('/sushi-api/auth/recovery-code', {
+    method: 'POST', body: JSON.stringify({ password: 'not-the-password' })
+  });
+  assert.equal(wrong.response.status, 401);
+
+  const minted = await client.request('/sushi-api/auth/recovery-code', {
+    method: 'POST', body: JSON.stringify({ password: 'a-long-safe-password' })
+  });
+  assert.equal(minted.response.status, 200);
+  assert.match(minted.data.recoveryCode, /^[a-f0-9-]+$/);
+  assert.notEqual(minted.data.recoveryCode, original);
+
+  // The session survives: replacing a recovery code is not a credential change and
+  // should not sign a child out of the device they are holding.
+  const me = await client.request('/sushi-api/auth/me');
+  assert.equal(me.data.user.username, 'LostTheCode');
+
+  // The old code no longer recovers the account; the new one does.
+  const stale = await makeClient().request('/sushi-api/auth/recover', {
+    method: 'POST', body: JSON.stringify({ username: 'LostTheCode', recoveryCode: original, newPassword: 'another-long-password' })
+  });
+  assert.equal(stale.response.status, 401, 'the replaced code must be dead');
+
+  const fresh = await makeClient().request('/sushi-api/auth/recover', {
+    method: 'POST', body: JSON.stringify({ username: 'LostTheCode', recoveryCode: minted.data.recoveryCode, newPassword: 'another-long-password' })
+  });
+  assert.equal(fresh.response.status, 200);
+});
+
+test('minting a recovery code needs a session', async t => {
+  const { client } = await makeHarness(t);
+  const anon = await client.request('/sushi-api/auth/recovery-code', {
+    method: 'POST', body: JSON.stringify({ password: 'anything' })
+  });
+  assert.equal(anon.response.status, 401);
+});

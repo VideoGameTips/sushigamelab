@@ -218,6 +218,30 @@ export function createApp(options = {}) {
     }
   });
 
+  // A recovery code is shown once, at registration, and only its hash is stored — so it
+  // genuinely cannot be shown again. That is the right way to keep it, but it leaves a
+  // child who scrolled past the screen with no way back into their own account. This
+  // mints a fresh one and voids the old, which answers "I never wrote it down" without
+  // ever putting a recoverable secret on disk.
+  //
+  // The password is required even though a session is present: otherwise anyone who got
+  // hold of an unlocked browser could quietly mint themselves a permanent way back in.
+  // auth_version is left alone — this is not a credential change and should not sign the
+  // player out of the device in their hands.
+  app.post(`${API_PREFIX}/auth/recovery-code`, requireSession, requireCsrf, authLimit, async (req, res, next) => {
+    try {
+      const user = store.getUserById(req.session.user_id);
+      if (!user || !await verifyPassword(String(req.body?.password || ''), user.password_hash)) {
+        return res.status(401).json({ error: 'Password is incorrect.' });
+      }
+      const recoveryCode = makeRecoveryCode();
+      if (!store.rotateRecovery(user.id, hashToken(recoveryCode))) {
+        return res.status(409).json({ error: 'Could not replace the recovery code. Try again.' });
+      }
+      res.json({ recoveryCode });
+    } catch (error) { next(error); }
+  });
+
   app.delete(`${API_PREFIX}/auth/account`, requireSession, requireCsrf, authLimit, async (req, res, next) => {
     try {
       const user = store.getUserById(req.session.user_id);
