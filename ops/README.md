@@ -215,3 +215,29 @@ Returns the owning account id and **public display name only** — a scoring ser
 no business learning the private login. Browser sessions are not accepted, and a caller
 without the secret gets the same 404 as a route that does not exist, so the endpoint
 does not advertise itself. Unset `SGL_VERIFIER_SECRET` and it is gone entirely.
+
+## Cache busting for portal assets
+
+Cloudflare applies its own `Cache-Control: max-age=14400` to `.js` and `.css` by
+extension, while Caddy serves `.html` as `no-cache`. That combination means every
+deployment of a portal script opens a four-hour window where browsers run the OLD
+JavaScript against the NEW HTML.
+
+That is not theoretical — it happened on the first deploy of the rankings page: the
+markup had dropped `#game-select`, the cached script still looked for it, and the
+page died on `addEventListener` of null, stuck on "Loading rankings…".
+
+So the references carry a version:
+
+```html
+<script src="/leaderboard.js?v=2026-08-17a" defer></script>
+```
+
+**Bump that string whenever `leaderboard.js`, `account.js` or `account.css` changes.**
+It is the only fix that reaches a browser which has already cached the old file —
+changing headers afterwards does not, because it will not ask again until its
+max-age expires.
+
+Caddy additionally serves these three files as `no-cache` (see the site block), so
+a browser loading them for the first time after a deploy revalidates. The version
+string is what covers everyone else.
