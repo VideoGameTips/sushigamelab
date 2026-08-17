@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { createApp } from '../app.js';
+import { attestationFor } from '../security.js';
 
 process.env.SGL_SCRYPT_N = '1024';
 process.env.SGL_SCRYPT_P = '1';
@@ -158,4 +159,135 @@ test('deleting an account removes its session and scores', async t => {
   const deleted = await client.request('/sushi-api/auth/account', { method: 'DELETE', body: JSON.stringify({ password: 'delete-this-password' }) });
   assert.equal(deleted.response.status, 204);
   assert.equal((await client.request('/sushi-api/auth/me')).data.user, null);
+});
+
+// ---- trusted-scorer attestations -------------------------------------------------
+
+const VERIFIER_SECRET = 'test-verifier-secret';
+const ADMIN_TOKEN = 'test-admin-token';
+
+async function rankedRun(client, { value, attestation, mode = 'theater-speed' } = {}) {
+  const started = await client.request('/sushi-api/runs/start', {
+    method: 'POST', body: JSON.stringify({ gameSlug: 'irontide', modeSlug: mode, clientVersion: 'test' })
+  });
+  const body = { runToken: started.data.runToken, value };
+  if (attestation !== undefined) body.metadata = { attestation };
+  const finished = await client.request(`/sushi-api/runs/${started.data.runId}/finish`, {
+    method: 'POST', body: JSON.stringify(body)
+  });
+  return { runId: started.data.runId, started, finished };
+}
+
+test('a run signed by the trusted scorer is verified; an unsigned one is not', async t => {
+  const { client } = await makeHarness(t, { verifierSecret: VERIFIER_SECRET });
+  await client.request('/sushi-api/auth/register', { method: 'POST', body: JSON.stringify({ username: 'ScoredOne', password: 'a-long-safe-password' }) });
+
+  const plain = await rankedRun(client, { value: 300 });
+  assert.equal(plain.finished.response.status, 201);
+  assert.equal(plain.finished.data.verification, 'community');
+
+  // The scorer signs the run it actually judged, keyed by a secret the browser never sees.
+  const signedRun = await client.request('/sushi-api/runs/start', {
+    method: 'POST', body: JSON.stringify({ gameSlug: 'irontide', modeSlug: 'theater-speed', clientVersion: 'test' })
+  });
+  const attestation = attestationFor(VERIFIER_SECRET, signedRun.data.runId, 'theater-speed', 275);
+  const signed = await client.request(`/sushi-api/runs/${signedRun.data.runId}/finish`, {
+    method: 'POST', body: JSON.stringify({ runToken: signedRun.data.runToken, value: 275, metadata: { attestation } })
+  });
+  assert.equal(signed.data.verification, 'verified');
+});
+
+test('a modified client cannot forge, move or re-point an attestation', async t => {
+  const { client } = await makeHarness(t, { verifierSecret: VERIFIER_SECRET });
+  await client.request('/sushi-api/auth/register', { method: 'POST', body: JSON.stringify({ username: 'ForgerOne', password: 'a-long-safe-password' }) });
+
+  // invented signature
+  const invented = await rankedRun(client, { value: 30, attestation: 'f'.repeat(64) });
+  assert.equal(invented.finished.data.verification, 'community');
+
+  // a signature that is real, but for a different value on this run
+  const runA = await client.request('/sushi-api/runs/start', {
+    method: 'POST', body: JSON.stringify({ gameSlug: 'irontide', modeSlug: 'theater-speed', clientVersion: 'test' })
+  });
+  const forValue300 = attestationFor(VERIFIER_SECRET, runA.data.runId, 'theater-speed', 300);
+  const swappedValue = await client.request(`/sushi-api/runs/${runA.data.runId}/finish`, {
+    method: 'POST', body: JSON.stringify({ runToken: runA.data.runToken, value: 20, metadata: { attestation: forValue300 } })
+  });
+  assert.equal(swappedValue.data.verification, 'community', 'the value is part of what was signed');
+
+  // a signature that is real, but issued for someone else's run
+  const runB = await client.request('/sushi-api/runs/start', {
+    method: 'POST', body: JSON.stringify({ gameSlug: 'irontide', modeSlug: 'theater-speed', clientVersion: 'test' })
+  });
+  const runC = await client.request('/sushi-api/runs/start', {
+    method: 'POST', body: JSON.stringify({ gameSlug: 'irontide', modeSlug: 'theater-speed', clientVersion: 'test' })
+  });
+  const forRunB = attestationFor(VERIFIER_SECRET, runB.data.runId, 'theater-speed', 275);
+  const replayed = await client.request(`/sushi-api/runs/${runC.data.runId}/finish`, {
+    method: 'POST', body: JSON.stringify({ runToken: runC.data.runToken, value: 275, metadata: { attestation: forRunB } })
+  });
+  assert.equal(replayed.data.verification, 'community', 'an attestation is bound to one run');
+});
+
+test('with no verifier secret configured nothing can be verified', async t => {
+  const { client } = await makeHarness(t);            // secret deliberately unset
+  await client.request('/sushi-api/auth/register', { method: 'POST', body: JSON.stringify({ username: 'NoSecret', password: 'a-long-safe-password' }) });
+  const attestation = attestationFor(VERIFIER_SECRET, 'any-run', 'theater-speed', 275);
+  const run = await rankedRun(client, { value: 275, attestation });
+  assert.equal(run.finished.data.verification, 'community', 'the feature fails closed');
+});
+
+// ---- moderation --------------------------------------------------------------------
+
+test('a moderator can hide a score and put it back', async t => {
+  const { client } = await makeHarness(t, { adminToken: ADMIN_TOKEN });
+  await client.request('/sushi-api/auth/register', { method: 'POST', body: JSON.stringify({ username: 'BoardOne', password: 'a-long-safe-password' }) });
+  await rankedRun(client, { value: 275 });
+
+  const onBoard = await client.request('/sushi-api/leaderboards/irontide/theater-speed?period=all');
+  assert.equal(onBoard.data.entries.length, 1);
+
+  const listed = await client.request('/sushi-api/admin/scores', { headers: { 'x-admin-token': ADMIN_TOKEN } });
+  assert.equal(listed.response.status, 200);
+  const scoreId = listed.data.scores[0].id;
+
+  const hidden = await client.request(`/sushi-api/admin/scores/${scoreId}`, {
+    method: 'POST', headers: { 'x-admin-token': ADMIN_TOKEN }, body: JSON.stringify({ removed: true, reason: 'obviously impossible' })
+  });
+  assert.equal(hidden.response.status, 200);
+  const gone = await client.request('/sushi-api/leaderboards/irontide/theater-speed?period=all');
+  assert.equal(gone.data.entries.length, 0, 'a hidden score leaves the board');
+
+  await client.request(`/sushi-api/admin/scores/${scoreId}`, {
+    method: 'POST', headers: { 'x-admin-token': ADMIN_TOKEN }, body: JSON.stringify({ removed: false })
+  });
+  const back = await client.request('/sushi-api/leaderboards/irontide/theater-speed?period=all');
+  assert.equal(back.data.entries.length, 1, 'hiding is reversible');
+});
+
+test('disabling an account clears its sessions and takes it off the board', async t => {
+  const { client } = await makeHarness(t, { adminToken: ADMIN_TOKEN });
+  const registered = await client.request('/sushi-api/auth/register', { method: 'POST', body: JSON.stringify({ username: 'RuleBreaker', password: 'a-long-safe-password' }) });
+  await rankedRun(client, { value: 42 });
+
+  await client.request(`/sushi-api/admin/users/${registered.data.user.id}`, {
+    method: 'POST', headers: { 'x-admin-token': ADMIN_TOKEN }, body: JSON.stringify({ disabled: true })
+  });
+
+  const board = await client.request('/sushi-api/leaderboards/irontide/theater-speed?period=all');
+  assert.equal(board.data.entries.length, 0);
+  const me = await client.request('/sushi-api/auth/me');
+  assert.equal(me.data.user, null, 'an open session must not survive being disabled');
+});
+
+test('moderation refuses a wrong token, and hides entirely when unconfigured', async t => {
+  const withToken = await makeHarness(t, { adminToken: ADMIN_TOKEN });
+  const wrong = await withToken.client.request('/sushi-api/admin/scores', { headers: { 'x-admin-token': 'not-the-token' } });
+  assert.equal(wrong.response.status, 401);
+  const missing = await withToken.client.request('/sushi-api/admin/scores');
+  assert.equal(missing.response.status, 401);
+
+  const noToken = await makeHarness(t);               // token deliberately unset
+  const invisible = await noToken.client.request('/sushi-api/admin/scores', { headers: { 'x-admin-token': ADMIN_TOKEN } });
+  assert.equal(invisible.response.status, 404, 'an unconfigured moderation API does not advertise itself');
 });

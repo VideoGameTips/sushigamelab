@@ -142,3 +142,59 @@ curl --fail --silent --show-error \
 Keep the `.pre-restore-*` directory until accounts and leaderboards have been
 checked through the public site. Remove it only after the restored service is
 confirmed healthy and a fresh off-server backup exists.
+
+## Verified scores
+
+A score is labelled `community` unless a trusted scoring server vouched for it.
+That server signs the run it judged:
+
+```text
+attestation = HMAC-SHA256(SGL_VERIFIER_SECRET, "<runId>.<modeSlug>.<value>")
+```
+
+and the game client relays the value in `metadata.attestation` when finishing the
+run. The browser never holds the secret, so a modified client can still post a
+score — it simply cannot promote one past `community`. The signature covers the
+run id and the value, so it cannot be moved to another run or reused for a
+different score. With `SGL_VERIFIER_SECRET` unset the path is off entirely.
+
+Iron Tide is the first game wired this way: its own server runs the handshake,
+times the war against its own clock, and bounds the result against the game's
+spawn constants before signing. See `irontide/docs/LEADERBOARD.md`.
+
+## Moderation
+
+`disabled_at`, `removed_at` and `removal_reason` were in the schema from the
+start but nothing could write them, so a bad entry could only be fixed by editing
+SQLite by hand. These routes need `SGL_ADMIN_TOKEN` in an `X-Admin-Token` header
+— never a query parameter, because Caddy logs whole URIs.
+
+```bash
+TOKEN=...   # from /etc/sushigamelab-api.env
+
+# what has been posted lately
+curl -s -H "X-Admin-Token: $TOKEN" https://sushigamelab.com/sushi-api/admin/scores | head
+
+# hide one score, and put it back
+curl -s -X POST -H "X-Admin-Token: $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"removed":true,"reason":"impossible time"}' \
+  https://sushigamelab.com/sushi-api/admin/scores/<scoreId>
+curl -s -X POST -H "X-Admin-Token: $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"removed":false}' https://sushigamelab.com/sushi-api/admin/scores/<scoreId>
+
+# disable an account: it leaves every board and its open sessions are dropped
+curl -s -X POST -H "X-Admin-Token: $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"disabled":true}' https://sushigamelab.com/sushi-api/admin/users/<userId>
+```
+
+Hiding and disabling are reversible; deleting an account is not.
+
+## Schema migrations
+
+Opening the database upgrades it in place. The one migration so far widens the
+`scores.verification` constraint to allow `verified`; SQLite cannot alter a CHECK,
+so the table is rebuilt inside a transaction and `foreign_key_check` must come
+back clean. It is guarded on the stored DDL rather than `user_version`, so it is a
+no-op on an already-migrated database and safe to run repeatedly.
+
+**Back up before deploying a migration** — `/usr/local/bin/sushigamelab-api-backup.sh`.

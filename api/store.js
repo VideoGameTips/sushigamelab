@@ -2,17 +2,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
-function periodCutoff(period, now = Date.now()) {
-  const date = new Date(now);
+// SGL_WEEK_TZ_OFFSET_MIN shifts the weekly and seasonal boundaries into the players'
+// own timezone. Left at 0 the periods roll over at UTC midnight, which on the Pacific
+// coast lands mid-Sunday-afternoon — "this week" would reset while everyone is playing.
+// A fixed offset drifts by an hour across daylight saving; for a leaderboard reset that
+// is not worth carrying a timezone database.
+const WEEK_TZ_OFFSET_MIN = Number(process.env.SGL_WEEK_TZ_OFFSET_MIN || 0);
+
+function periodCutoff(period, now = Date.now(), offsetMin = WEEK_TZ_OFFSET_MIN) {
+  const date = new Date(now + offsetMin * 60000);
   if (period === 'week') {
     const day = (date.getUTCDay() + 6) % 7;
     date.setUTCDate(date.getUTCDate() - day);
     date.setUTCHours(0, 0, 0, 0);
-    return date.getTime();
+    return date.getTime() - offsetMin * 60000;
   }
   if (period === 'season') {
     const quarterMonth = Math.floor(date.getUTCMonth() / 3) * 3;
-    return Date.UTC(date.getUTCFullYear(), quarterMonth, 1);
+    return Date.UTC(date.getUTCFullYear(), quarterMonth, 1) - offsetMin * 60000;
   }
   return 0;
 }
@@ -68,7 +75,7 @@ export function createStore(dbPath) {
       game_slug TEXT NOT NULL,
       mode_slug TEXT NOT NULL,
       value INTEGER NOT NULL,
-      verification TEXT NOT NULL DEFAULT 'community' CHECK(verification IN ('community')),
+      verification TEXT NOT NULL DEFAULT 'community' CHECK(verification IN ('community','verified')),
       metadata_json TEXT NOT NULL DEFAULT '{}',
       achieved_at INTEGER NOT NULL,
       removed_at INTEGER,
@@ -86,7 +93,46 @@ export function createStore(dbPath) {
   if (!userColumns.has('auth_version')) db.exec('ALTER TABLE users ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 1');
   if (!sessionColumns.has('auth_version')) db.exec('ALTER TABLE sessions ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 1');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_display_name_unique ON users(display_name)');
-  db.pragma('user_version = 1');
+
+  // Widen the verification constraint so a trusted scorer can mark a run 'verified'.
+  // SQLite cannot alter a CHECK in place, so the table has to be rebuilt. The guard
+  // reads the stored DDL rather than user_version: it stays correct even if a database
+  // was created before versions were tracked, and it is a no-op once the column allows
+  // the new value. CREATE TABLE above already carries the wider constraint, so a fresh
+  // database rebuilds nothing.
+  const scoresDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='scores'").get()?.sql || '';
+  if (!scoresDdl.includes("'verified'")) {
+    // foreign_keys cannot be toggled inside a transaction, hence the order here.
+    db.pragma('foreign_keys = OFF');
+    db.exec(`
+      BEGIN;
+      CREATE TABLE scores_migrating (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL UNIQUE REFERENCES runs(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        game_slug TEXT NOT NULL,
+        mode_slug TEXT NOT NULL,
+        value INTEGER NOT NULL,
+        verification TEXT NOT NULL DEFAULT 'community' CHECK(verification IN ('community','verified')),
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        achieved_at INTEGER NOT NULL,
+        removed_at INTEGER,
+        removal_reason TEXT
+      );
+      INSERT INTO scores_migrating (id,run_id,user_id,game_slug,mode_slug,value,verification,metadata_json,achieved_at,removed_at,removal_reason)
+        SELECT id,run_id,user_id,game_slug,mode_slug,value,verification,metadata_json,achieved_at,removed_at,removal_reason FROM scores;
+      DROP TABLE scores;
+      ALTER TABLE scores_migrating RENAME TO scores;
+      CREATE INDEX IF NOT EXISTS scores_board ON scores(game_slug, mode_slug, achieved_at, value);
+      CREATE INDEX IF NOT EXISTS scores_user ON scores(user_id);
+      COMMIT;
+    `);
+    db.pragma('foreign_keys = ON');
+    const check = db.pragma('foreign_key_check', { simple: false });
+    if (check.length) throw new Error(`Score migration left ${check.length} dangling reference(s).`);
+  }
+
+  db.pragma('user_version = 2');
 
   const statements = {
     createUser: db.prepare('INSERT INTO users (id, username, username_key, display_name, password_hash, recovery_hash, auth_version, created_at) VALUES (@id,@username,@usernameKey,@displayName,@passwordHash,@recoveryHash,@authVersion,@createdAt)'),
@@ -112,7 +158,24 @@ export function createStore(dbPath) {
     finishRun: db.prepare("UPDATE runs SET finished_at=?,status='finished' WHERE id=? AND status='open'"),
     createScore: db.prepare('INSERT INTO scores (id,run_id,user_id,game_slug,mode_slug,value,verification,metadata_json,achieved_at) VALUES (@id,@runId,@userId,@gameSlug,@modeSlug,@value,@verification,@metadataJson,@achievedAt)'),
     cleanupSessions: db.prepare('DELETE FROM sessions WHERE expires_at<?'),
-    cleanupRuns: db.prepare("DELETE FROM runs WHERE status='open' AND expires_at<?")
+    cleanupRuns: db.prepare("DELETE FROM runs WHERE status='open' AND expires_at<?"),
+
+    // ---- moderation ----
+    // `disabled_at`, `removed_at` and `removal_reason` were filtered by nine queries but
+    // never written by anything, so a bad score could only be dealt with by hand-editing
+    // the database. These give the parent-facing routes something to call. Hiding is
+    // always reversible; deleting an account stays the only destructive operation.
+    removeScore: db.prepare('UPDATE scores SET removed_at=@now, removal_reason=@reason WHERE id=@id AND removed_at IS NULL'),
+    restoreScore: db.prepare('UPDATE scores SET removed_at=NULL, removal_reason=NULL WHERE id=@id'),
+    setUserDisabled: db.prepare('UPDATE users SET disabled_at=@at WHERE id=@id'),
+    recentScoresForReview: db.prepare(`
+      SELECT s.id, s.user_id, s.game_slug, s.mode_slug, s.value, s.verification,
+             s.metadata_json, s.achieved_at, s.removed_at, s.removal_reason,
+             u.display_name, u.username, u.disabled_at
+      FROM scores s JOIN users u ON u.id = s.user_id
+      WHERE (@game IS NULL OR s.game_slug = @game)
+      ORDER BY s.achieved_at DESC LIMIT @limit
+    `)
   };
 
   const finishTransaction = db.transaction(score => {
@@ -185,6 +248,22 @@ export function createStore(dbPath) {
     finishRun(score) { finishTransaction(score); },
     leaderboard,
     cleanup(now = Date.now()) { statements.cleanupSessions.run(now); statements.cleanupRuns.run(now); },
+
+    removeScore(id, reason, now = Date.now()) {
+      return statements.removeScore.run({ id, reason: String(reason || '').slice(0, 200) || 'removed by a moderator', now }).changes === 1;
+    },
+    restoreScore(id) { return statements.restoreScore.run({ id }).changes === 1; },
+    setUserDisabled(id, disabled, now = Date.now()) {
+      return db.transaction(() => {
+        const changed = statements.setUserDisabled.run({ id, at: disabled ? now : null }).changes === 1;
+        // A disabled account must not keep walking around on an open session.
+        if (changed && disabled) statements.deleteUserSessions.run(id);
+        return changed;
+      })();
+    },
+    recentScoresForReview(game, limit = 100) {
+      return statements.recentScoresForReview.all({ game: game || null, limit });
+    },
     close() { db.close(); }
   };
 }

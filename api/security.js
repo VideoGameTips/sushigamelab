@@ -1,5 +1,5 @@
 import { promisify } from 'node:util';
-import { createHash, randomBytes, randomInt, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 
 const scrypt = promisify(scryptCallback);
 const ADJECTIVES = ['Brave', 'Clever', 'Cosmic', 'Crimson', 'Flying', 'Golden', 'Iron', 'Jade', 'Lucky', 'Mighty', 'Quiet', 'Rapid', 'Silver', 'Stormy', 'Swift'];
@@ -58,6 +58,29 @@ export function verifyToken(token, expectedHash) {
   const actual = Buffer.from(hashToken(token), 'hex');
   const expected = Buffer.from(String(expectedHash || ''), 'hex');
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+// ---- trusted-scorer attestations -------------------------------------------------
+//
+// A browser can always be modified, so a score a browser reports is only ever worth
+// the 'community' label. A game whose scoring lives on a server we control is a
+// different claim, and this is how that server makes it: it signs (run, mode, value)
+// with a secret the browser never sees, and relays the signature through the client.
+//
+// The run id is single-use and issued by this service, so an attestation cannot be
+// replayed onto a second run or edited to carry a different score. If the secret is
+// unset the whole path is off and everything stays 'community' — failing closed is
+// the only safe default for a badge that claims something stronger than usual.
+
+export function attestationFor(secret, runId, modeSlug, value) {
+  return createHmac('sha256', String(secret))
+    .update(`${runId}.${modeSlug}.${value}`)
+    .digest('hex');
+}
+
+export function verifyAttestation(secret, runId, modeSlug, value, supplied) {
+  if (!secret || !supplied) return false;
+  return verifyToken(attestationFor(secret, runId, modeSlug, value), hashToken(String(supplied)));
 }
 
 export function makeRecoveryCode() {
