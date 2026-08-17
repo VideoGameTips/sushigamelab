@@ -173,6 +173,14 @@ export function createStore(dbPath) {
     removeScore: db.prepare('UPDATE scores SET removed_at=@now, removal_reason=@reason WHERE id=@id AND removed_at IS NULL'),
     restoreScore: db.prepare('UPDATE scores SET removed_at=NULL, removal_reason=NULL WHERE id=@id'),
     setUserDisabled: db.prepare('UPDATE users SET disabled_at=@at WHERE id=@id'),
+    // Who owns a ranked run. Read by a trusted scoring service so it can attribute its
+    // own detailed boards to a real account instead of whatever the browser claims to be.
+    runOwner: db.prepare(`
+      SELECT r.id, r.game_slug, r.mode_slug, r.status, r.expires_at,
+             u.id AS user_id, u.display_name, u.disabled_at
+      FROM runs r JOIN users u ON u.id = r.user_id
+      WHERE r.id = ?
+    `),
     recentScoresForReview: db.prepare(`
       SELECT s.id, s.user_id, s.game_slug, s.mode_slug, s.value, s.verification,
              s.metadata_json, s.achieved_at, s.removed_at, s.removal_reason,
@@ -269,6 +277,7 @@ export function createStore(dbPath) {
     recentScoresForReview(game, limit = 100) {
       return statements.recentScoresForReview.all({ game: game || null, limit });
     },
+    getRunOwner(runId) { return statements.runOwner.get(runId) || null; },
     close() { db.close(); }
   };
 }

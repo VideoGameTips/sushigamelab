@@ -291,3 +291,41 @@ test('moderation refuses a wrong token, and hides entirely when unconfigured', a
   const invisible = await noToken.client.request('/sushi-api/admin/scores', { headers: { 'x-admin-token': ADMIN_TOKEN } });
   assert.equal(invisible.response.status, 404, 'an unconfigured moderation API does not advertise itself');
 });
+
+test('a trusted service can look up who owns a run, and nobody else can', async t => {
+  const { client } = await makeHarness(t, { verifierSecret: VERIFIER_SECRET });
+  const registered = await client.request('/sushi-api/auth/register', { method: 'POST', body: JSON.stringify({ username: 'RunOwner', password: 'a-long-safe-password' }) });
+  const started = await client.request('/sushi-api/runs/start', {
+    method: 'POST', body: JSON.stringify({ gameSlug: 'irontide', modeSlug: 'campaign', clientVersion: 'test' })
+  });
+
+  const looked = await client.request(`/sushi-api/internal/runs/${started.data.runId}`, {
+    headers: { 'x-service-token': VERIFIER_SECRET }
+  });
+  assert.equal(looked.response.status, 200);
+  assert.equal(looked.data.userId, registered.data.user.id);
+  assert.equal(looked.data.displayName, registered.data.user.displayName);
+  assert.equal(looked.data.modeSlug, 'campaign');
+  assert.ok(!('username' in looked.data), 'the private login is never handed to another service');
+
+  // A browser session is not a service credential, and a wrong token is indistinguishable
+  // from the route not existing.
+  const asBrowser = await client.request(`/sushi-api/internal/runs/${started.data.runId}`);
+  assert.equal(asBrowser.response.status, 404);
+  const wrongToken = await client.request(`/sushi-api/internal/runs/${started.data.runId}`, {
+    headers: { 'x-service-token': 'not-the-secret' }
+  });
+  assert.equal(wrongToken.response.status, 404);
+});
+
+test('run lookup is invisible when no verifier secret is configured', async t => {
+  const { client } = await makeHarness(t);
+  await client.request('/sushi-api/auth/register', { method: 'POST', body: JSON.stringify({ username: 'NoService', password: 'a-long-safe-password' }) });
+  const started = await client.request('/sushi-api/runs/start', {
+    method: 'POST', body: JSON.stringify({ gameSlug: 'irontide', modeSlug: 'campaign', clientVersion: 'test' })
+  });
+  const looked = await client.request(`/sushi-api/internal/runs/${started.data.runId}`, {
+    headers: { 'x-service-token': VERIFIER_SECRET }
+  });
+  assert.equal(looked.response.status, 404);
+});

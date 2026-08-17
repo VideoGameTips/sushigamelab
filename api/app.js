@@ -92,6 +92,18 @@ export function createApp(options = {}) {
     message: { error: 'Too many leaderboard refreshes. Please wait a moment.' }
   });
 
+  // Guards the token-authenticated routes: moderation, and the service-to-service run
+  // lookup. Both are gated by a shared secret, and a secret behind an unthrottled
+  // endpoint is one somebody can sit and guess at. Declared up here with the other
+  // limiters rather than beside its routes — a `const` used by a route registered
+  // earlier in the function is a temporal-dead-zone crash at startup.
+  const adminLimit = options.disableRateLimits ? (_req, _res, next) => next() : rateLimit({
+    windowMs: 10 * 60 * 1000,
+    limit: 60,
+    standardHeaders: 'draft-7', legacyHeaders: false,
+    message: { error: 'Too many moderation requests. Please wait a few minutes.' }
+  });
+
   function issueSession(res, userId, authVersion) {
     const token = randomToken();
     const csrfToken = randomToken(24);
@@ -298,6 +310,36 @@ export function createApp(options = {}) {
     });
   });
 
+  // ---- service-to-service ------------------------------------------------------------
+  //
+  // A game's trusted scoring server keeps its own detailed boards (Iron Tide ranks 31
+  // theatres across 3 difficulties; this service ranks one number per mode). Those
+  // boards need to say WHO set a time, and the only thing the scoring server receives
+  // from the browser is a run id — which a modified client could copy from anyone.
+  //
+  // So it asks here instead. Authenticated with the same secret used for attestations,
+  // never reachable from a browser: no cookie is accepted, and a caller without the
+  // secret gets the same 404 as a route that does not exist. Returns the PUBLIC display
+  // name only — a scoring server has no business knowing the private login.
+  function requireService(req, res, next) {
+    if (!verifierSecret) return res.status(404).json({ error: 'API route not found.' });
+    const supplied = String(req.get('x-service-token') || '');
+    if (!supplied || !verifyToken(supplied, hashToken(verifierSecret))) {
+      return res.status(404).json({ error: 'API route not found.' });
+    }
+    next();
+  }
+
+  app.get(`${API_PREFIX}/internal/runs/:runId`, adminLimit, requireService, (req, res) => {
+    const run = store.getRunOwner(req.params.runId);
+    if (!run) return res.status(404).json({ error: 'Ranked run not found.' });
+    res.json({
+      runId: run.id, gameSlug: run.game_slug, modeSlug: run.mode_slug, status: run.status,
+      expiresAt: run.expires_at, userId: run.user_id, displayName: run.display_name,
+      disabled: Boolean(run.disabled_at)
+    });
+  });
+
   // ---- moderation -----------------------------------------------------------------
   //
   // The schema always had disabled_at, removed_at and removal_reason, and nine queries
@@ -309,16 +351,6 @@ export function createApp(options = {}) {
   // account would mean one compromised child login could rewrite the board, and the
   // people who moderate this site are the parents who already hold the server.
   // The token travels in a header, never a query string — the reverse proxy logs URIs.
-  // Every other sensitive route here is throttled; these must be too. The token is the
-  // only thing between the open internet and rewriting a children's leaderboard, and an
-  // unthrottled endpoint is an invitation to sit and guess at it.
-  const adminLimit = options.disableRateLimits ? (_req, _res, next) => next() : rateLimit({
-    windowMs: 10 * 60 * 1000,
-    limit: 60,
-    standardHeaders: 'draft-7', legacyHeaders: false,
-    message: { error: 'Too many moderation requests. Please wait a few minutes.' }
-  });
-
   function requireAdmin(req, res, next) {
     if (!adminToken) return res.status(404).json({ error: 'API route not found.' });
     const supplied = String(req.get('x-admin-token') || '');

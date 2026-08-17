@@ -198,3 +198,20 @@ back clean. It is guarded on the stored DDL rather than `user_version`, so it is
 no-op on an already-migrated database and safe to run repeatedly.
 
 **Back up before deploying a migration** — `/usr/local/bin/sushigamelab-api-backup.sh`.
+
+## Run ownership lookup (service to service)
+
+A game's own scoring server keeps boards this service does not: Iron Tide ranks 31
+theatres across three difficulties, while a Sushi ID mode holds one number. Those
+detailed boards still have to say *who* set a time, and all the scoring server gets
+from the browser is a run id — which a modified client could copy from anybody.
+
+```bash
+curl -s -H "X-Service-Token: $SGL_VERIFIER_SECRET" \
+  https://sushigamelab.com/sushi-api/internal/runs/<runId>
+```
+
+Returns the owning account id and **public display name only** — a scoring server has
+no business learning the private login. Browser sessions are not accepted, and a caller
+without the secret gets the same 404 as a route that does not exist, so the endpoint
+does not advertise itself. Unset `SGL_VERIFIER_SECRET` and it is gone entirely.
